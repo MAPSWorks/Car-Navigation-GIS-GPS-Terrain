@@ -90,7 +90,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;USE_D3D11_MATH;_DEBUG;_LIB;_ITERATOR_DEBUG_LEVEL=0;_HAS_ITERATOR_DEBUGGING=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;USE_D3D11_MATH;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>../../../Common/Framework11/external/sfml/include;../../../Common/Framework11/external/sfml/src/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -153,6 +153,7 @@
     <ClInclude Include="CFW1StateSaver.h" />
     <ClInclude Include="gis.h" />
     <ClInclude Include="heightmap.h" />
+    <ClInclude Include="heightmap2.h" />
     <ClInclude Include="poireader.h" />
     <ClInclude Include="quadtile.h" />
     <ClInclude Include="quadtilemanager.h" />
@@ -160,6 +161,7 @@
     <ClInclude Include="real3dmodelindexreader.h" />
     <ClInclude Include="root.h" />
     <ClInclude Include="route.h" />
+    <ClInclude Include="shapefileloader.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="taskwebdownload.h" />
     <ClInclude Include="terrainquadtree.h" />
@@ -174,11 +176,13 @@
     <ClCompile Include="CFW1StateSaver.cpp" />
     <ClCompile Include="gis.cpp" />
     <ClCompile Include="heightmap.cpp" />
+    <ClCompile Include="heightmap2.cpp" />
     <ClCompile Include="poireader.cpp" />
     <ClCompile Include="quadtile.cpp" />
     <ClCompile Include="quadtilemanager.cpp" />
     <ClCompile Include="real3dmodelindexreader.cpp" />
     <ClCompile Include="route.cpp" />
+    <ClCompile Include="shapefileloader.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

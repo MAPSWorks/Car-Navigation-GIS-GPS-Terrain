@@ -31,6 +31,10 @@ cGlobal::cGlobal()
 	, m_speed(0)
 	, m_gear(0)
 	, m_obdRcvCnt(0)
+	, m_isDebugMode(false)
+	, m_isDarkMode(false)
+	, m_darkColor(0.1f, 0.1f, 0.1f, 1.f)
+	, m_camType(eCameraType::Custom)
 {
 }
 
@@ -46,7 +50,18 @@ bool cGlobal::Init(HWND hwnd)
 {
 	m_config.Read("carnavi_config.txt");
 	g_mediaDir = m_config.GetString("media_path", "D:\\media\\data");
-	g_mediaDir2 = m_config.GetString("media_path", "D:\\media\\data");
+
+	// read camera information
+	for (int i = 0; i < (int)eCameraType::MAX; ++i)
+	{
+		string key1 = common::format("view_camera%d_lookat_y", i);
+		string key2 = common::format("view_camera%d_distance", i);
+		m_camInfo[i].lookAtY = m_config.GetFloat(key1, -0.5f);
+		m_camInfo[i].distance = m_config.GetFloat(key2, 30.f);
+	}
+
+	const float darkColor = m_config.GetFloat("darkcolor", 0.1f);
+	m_darkColor = Vector4(darkColor, darkColor, darkColor, 1.f);
 
 	m_timer.Create();
 	m_touch.Init(hwnd);
@@ -64,6 +79,8 @@ bool cGlobal::Init(HWND hwnd)
 		m_pathFilename += ".txt";
 		++fileId;
 	} while (m_pathFilename.IsFileExist());
+
+	m_shape.Read("./media/road/Z_UPIS_C_UQ1512.shp");
 
 	return true;
 }
@@ -134,14 +151,16 @@ bool cGlobal::Read3DPosFiles(graphic::cRenderer &renderer, const StrPath pathDir
 // path파일에 해당하는 *.3dpos 파일이 있다면, 해당 파일을 읽어 온다.
 // path파일 - 3dpos 파일은 파일명은 같고, 확장자만 다르다.
 // path파일 중에 3dpos 파일로 변환되지 않는 파일은 변환시킨다.
-bool cGlobal::ReadAndConvertPathFiles(graphic::cRenderer &renderer, cTerrainQuadTree &terrain
-	, const StrPath pathDirectoryName)
+bool cGlobal::ReadAndConvertPathFiles(graphic::cRenderer &renderer
+	, cTerrainQuadTree &terrain
+	, const StrPath &pathDirectoryName)
 {
 	list<string> files;
 	list<string> exts;
 	exts.push_back(".txt");
 	common::CollectFiles(exts, pathDirectoryName.c_str(), files);
 
+	m_pathRenderers.reserve(files.size());
 	const string curPathFileName = m_pathFilename.GetFileName();
 
 	for (auto &file : files)
@@ -161,24 +180,26 @@ bool cGlobal::ReadAndConvertPathFiles(graphic::cRenderer &renderer, cTerrainQuad
 		cPathRenderer *p = NULL;
 		if (pos3DFileName.IsFileExist())
 		{
+			// read *.3dpos file
 			p = new cPathRenderer();
 			if (!p->Create(renderer, pos3DFileName))
 			{
 				delete p;
-				continue;
+				continue; // error occurred
 			}
 		}
 		else
 		{
 			cPath path(file);
 			if (!path.IsLoad())
-				continue;
+				continue; // error occurred
 
+			// read *.txt file
 			p = new cPathRenderer();
 			if (!p->Create(renderer, terrain, path, pos3DFileName))
 			{
-				delete p;
-				continue;
+				delete p; 
+				continue; // error occurred
 			}
 		}
 

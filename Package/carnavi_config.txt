@@ -1,3 +1,6 @@
-media_path = F:\media\data
+media_path = G:\media\data
 
 gps_input_type = 1
+naviserver_ip = localhost
+naviserver_port = 1234
+debug_mode = 1

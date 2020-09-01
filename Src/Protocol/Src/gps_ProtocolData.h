@@ -16,6 +16,15 @@ using namespace marshalling;
 		netid senderId;
 		double lon;
 		double lat;
+		float altitude;
+		float speed;
+	};
+
+	struct AddLandMark_Packet {
+		cProtocolDispatcher *pdispatcher;
+		netid senderId;
+		double lon;
+		double lat;
 	};
 
 

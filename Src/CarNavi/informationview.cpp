@@ -85,11 +85,11 @@ void cInformationView::OnRender(const float deltaSeconds)
 		ImGui::Separator();
 
 		ImGui::Text("download %d"
-			, terrain.m_tileMgr.m_geoDownloader.m_requestIds.size());
+			, terrain.m_tileMgr->m_geoDownloader.m_requestIds.size());
 		ImGui::Text("    - total size %I64d (MB)"
-			, terrain.m_tileMgr.m_geoDownloader.m_totalDownloadFileSize / (1048576)); // 1024*1024
-		ImGui::Text("load texture %d"
-			, terrain.m_tileMgr.m_tmaps.m_tpLoader.m_tasks.size());
+			, terrain.m_tileMgr->m_geoDownloader.m_totalDownloadFileSize / (1048576)); // 1024*1024
+		//ImGui::Text("load texture %d"
+		//	, terrain.m_tileMgr->m_tmaps.m_tpLoader.m_tasks.size());
 
 		if (g_global->m_isMakeTracePath)
 		{
@@ -106,18 +106,18 @@ void cInformationView::OnRender(const float deltaSeconds)
 			}
 		}
 
-		if (g_global->m_gpsClient.IsFileReplay())
+		if (g_global->m_gpsClient.IsPathReplay())
 		{
 			if (ImGui::Button("End File Trace"))
 			{
-				g_global->m_gpsClient.StopFileReplay();
+				g_global->m_gpsClient.StopPathFileReplay();
 			}
 		}
 		else
 		{
 			if (ImGui::Button("Start File Trace"))
 			{
-				g_global->m_gpsClient.FileReplay();
+				g_global->m_gpsClient.PathFileReplay();
 				g_global->m_prevTracePos = Vector3::Zeroes;
 			}
 		}

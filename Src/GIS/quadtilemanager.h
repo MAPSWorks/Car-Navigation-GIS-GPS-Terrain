@@ -104,7 +104,8 @@ protected:
 		, cQuadTile &tile
 		, const int level, const int xLoc, const int yLoc
 		, const sRectf &rect
-		, const int texType);
+		, const int texType
+		, const bool existFile);
 
 	cQuadTile* GetReplaceNode(
 		cTerrainQuadTree &terrain
@@ -126,7 +127,7 @@ protected:
 
 
 public:
-	const double LIMIT_TIME = 1.f; // m_tiles>1000: 1.f, 2000>0.5f
+	const double LIMIT_TIME = 0.8f; // 1.f, m_tiles>1000: 1.f, 2000>0.5f
 	struct sTileMem
 	{
 		double accessTime; // LIMIT_TIME이상 지나면, 메모리를 제거한다.
@@ -139,13 +140,9 @@ public:
 	map<__int64, sTileMem> m_tiles; // key = cQuadTree<sQuadData>::MakeKey(level, xLoc, yLoc)
 	graphic::cVertexBuffer m_tileVtxBuff;
 	graphic::cVertexBuffer m_tileLineVtxBuff;
-	graphic::cFileLoader<cTileTexture, 1000> m_tmaps;
-	graphic::cFileLoader<cHeightmap, 1000, sHeightmapArgs> m_hmaps;
-	graphic::cFileLoader<cPoiReader, 1000> m_pmaps[2]; // 0:poi_base, 1:poi_bound
-	graphic::cFileLoader<cReal3DModelIndexReader, 3000, graphic::sFileLoaderArg, sDistanceCompare> m_modelIndices;
-	graphic::cFileLoader<cXdoReader, 5000, graphic::sFileLoaderArg, sDistanceCompare> m_facilities;
-	graphic::cFileLoader<cTileTexture, 5000, graphic::sFileLoaderArg, sDistanceCompare> m_facilitiesTex;
 	map<int64, float> m_heights; // key = cQuadTree<sQuadData>::MakeKey(level, xLoc, yLoc)
+	graphic::cFileLoader2<2000, 10, sHeightmapArgs2> m_loader1; // texture, heightmap
+	graphic::cFileLoader2<10000, 1> m_loader2; // poi, index, xdo
 
 	gis::cGeoDownloader m_geoDownloader;
 	vector<gis::sDownloadData> m_downloadFiles;
@@ -160,4 +157,7 @@ public:
 
 	// delay load file sorting
 	float m_timeLoadFileSorting;
+
+	// calc deep copy smooth
+	bool m_isDeepCopySmooth;
 };

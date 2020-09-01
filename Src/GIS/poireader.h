@@ -5,7 +5,7 @@
 #pragma once
 
 
-class cPoiReader
+class cPoiReader : public graphic::iParallelLoadObject
 {
 public:
 	struct sPoi
@@ -26,9 +26,10 @@ public:
 	cPoiReader();
 	cPoiReader(graphic::cRenderer &renderer, const char *fileName);
 	cPoiReader(graphic::cRenderer &renderer, const cPoiReader *src, const char *fileName
-		, const graphic::sFileLoaderArg &args);
+		, const graphic::sFileLoaderArg2 &args);
 
 	virtual ~cPoiReader();
+	virtual const char* Type() override { return "cPoiReader"; }
 
 	bool Read(const char *fileName);
 	void Clear();

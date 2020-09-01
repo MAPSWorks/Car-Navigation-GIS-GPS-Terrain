@@ -4,7 +4,7 @@
 
 using namespace graphic;
 
-cQuadTileManager cTerrainQuadTree::m_tileMgr;
+cQuadTileManager *cTerrainQuadTree::m_tileMgr = nullptr;
 
 // sQuadData
 sQuadData::sQuadData() 
@@ -39,7 +39,7 @@ cTerrainQuadTree::cTerrainQuadTree()
 	, m_isShowDistribute(true)
 	, m_isRenderOptimize(false)
 	, m_optimizeLevel(cQuadTree<sQuadData>::MAX_LEVEL)
-	, m_techniqType(0)
+	, m_techniqType(4)
 	, m_distributeType(0)
 	, m_fps(0)
 	, m_calcOptimizeTime(0)
@@ -47,6 +47,7 @@ cTerrainQuadTree::cTerrainQuadTree()
 	, m_t1(0)
 	, m_t2(0)
 	, m_nodeBuffer(NULL)
+	, m_distanceLevelOffset(20)
 {
 	m_techName[0] = "Light";
 	m_techName[1] = "NoTexture";
@@ -54,14 +55,19 @@ cTerrainQuadTree::cTerrainQuadTree()
 	m_techName[3] = "Light_Heightmap";
 	m_techName[4] = "Unlit";
 	m_txtColor = Vector3(1, 0, 0);
+	if (!m_tileMgr)
+		m_tileMgr = new cQuadTileManager();
 }
 
 cTerrainQuadTree::cTerrainQuadTree(sRectf &rect)
 {
+	if (!m_tileMgr)
+		m_tileMgr = new cQuadTileManager();
 }
 
 cTerrainQuadTree::~cTerrainQuadTree()
 {
+	SAFE_DELETE(m_tileMgr);
 	Clear();
 }
 
@@ -106,7 +112,7 @@ void cTerrainQuadTree::Update(graphic::cRenderer &renderer,
 	const Vector2d &camLonLat, const float deltaSeconds)
 {
 	const double t0 = m_timer.GetSeconds();
-	m_tileMgr.Update(renderer, *this, camLonLat, deltaSeconds);
+	m_tileMgr->Update(renderer, *this, camLonLat, deltaSeconds);
 	const double t1 = m_timer.GetSeconds();
 	m_t2 = t1 - t0;
 }
@@ -208,8 +214,8 @@ void cTerrainQuadTree::BuildQuadTree(const graphic::cFrustum &frustum
 		--sp;
 
 		//const float maxH = GetMaximumHeight(parentNode);
-		const float maxH = parentNode ? m_tileMgr.GetMaximumHeight(parentNode->level
-			, parentNode->xLoc, parentNode->yLoc) : cHeightmap::DEFAULT_H;
+		const float maxH = parentNode ? m_tileMgr->GetMaximumHeight(parentNode->level
+			, parentNode->xLoc, parentNode->yLoc) : cHeightmap2::DEFAULT_H;
 		if (!IsContain(frustum, rect, maxH))
 			continue;
 
@@ -305,8 +311,8 @@ void cTerrainQuadTree::RenderTessellation(graphic::cRenderer &renderer
 		sQuadTreeNode<sQuadData> *node = g_stack[sp - 1].node;
 		--sp;
 
-		const float maxH = node? m_tileMgr.GetMaximumHeight(node->level
-			, node->xLoc, node->yLoc) : cHeightmap::DEFAULT_H;
+		const float maxH = node? m_tileMgr->GetMaximumHeight(node->level
+			, node->xLoc, node->yLoc) : cHeightmap2::DEFAULT_H;
 		const sRectf rect = m_qtree.GetNodeRect(node);
 		if (!IsContain(frustum, rect, maxH))
 			continue;
@@ -314,11 +320,11 @@ void cTerrainQuadTree::RenderTessellation(graphic::cRenderer &renderer
 		// leaf node?
 		if (!node->children[0])
 		{
-			cQuadTile *tile = m_tileMgr.GetTile(renderer, node->level, node->xLoc, node->yLoc, rect);
+			cQuadTile *tile = m_tileMgr->GetTile(renderer, node->level, node->xLoc, node->yLoc, rect);
 			tile->m_renderFlag = g_root.m_renderFlag;				
 			node->data.tile = tile;
-			m_tileMgr.LoadResource(renderer, *this, *tile, node->level, node->xLoc, node->yLoc, rect);
-			//m_tileMgr.Smooth(renderer, *this, node);
+			m_tileMgr->LoadResource(renderer, *this, *tile, node->level, node->xLoc, node->yLoc, rect);
+			//m_tileMgr->Smooth(renderer, *this, node);
 
 			tile->Render(renderer, deltaSeconds, node->data.level);
 
@@ -328,10 +334,10 @@ void cTerrainQuadTree::RenderTessellation(graphic::cRenderer &renderer
 		else
 		{
 			const sRectf rect = m_qtree.GetNodeRect(node);
-			cQuadTile *tile = m_tileMgr.GetTile(renderer, node->level, node->xLoc, node->yLoc, rect);
+			cQuadTile *tile = m_tileMgr->GetTile(renderer, node->level, node->xLoc, node->yLoc, rect);
 			tile->m_renderFlag = g_root.m_renderFlag;
 			node->data.tile = tile;
-			m_tileMgr.LoadResource(renderer, *this, *tile, node->level, node->xLoc, node->yLoc, rect);
+			m_tileMgr->LoadResource(renderer, *this, *tile, node->level, node->xLoc, node->yLoc, rect);
 
 			if (m_isShowPoi1 || m_isShowPoi2)
 				tile->RenderPoi(renderer, deltaSeconds, m_isShowPoi1, m_isShowPoi2);
@@ -363,8 +369,8 @@ void cTerrainQuadTree::RenderFacility(graphic::cRenderer &renderer
 		sQuadTreeNode<sQuadData> *node = g_stack[sp - 1].node;
 		--sp;
 
-		const float maxH = node ? m_tileMgr.GetMaximumHeight(node->level
-			, node->xLoc, node->yLoc) : cHeightmap::DEFAULT_H;
+		const float maxH = node ? m_tileMgr->GetMaximumHeight(node->level
+			, node->xLoc, node->yLoc) : cHeightmap2::DEFAULT_H;
 		const sRectf rect = m_qtree.GetNodeRect(node);
 		if (!IsContain(frustum, rect, maxH))
 			continue;
@@ -372,13 +378,13 @@ void cTerrainQuadTree::RenderFacility(graphic::cRenderer &renderer
 		// leaf node?
 		if (!node->children[0])
 		{
-			cQuadTile *tile = m_tileMgr.GetTile(renderer, node->level, node->xLoc, node->yLoc, rect);
+			cQuadTile *tile = m_tileMgr->GetTile(renderer, node->level, node->xLoc, node->yLoc, rect);
 			tile->RenderFacility(renderer, deltaSeconds);
 		}
 		else
 		{
 			const sRectf rect = m_qtree.GetNodeRect(node);
-			cQuadTile *tile = m_tileMgr.GetTile(renderer, node->level, node->xLoc, node->yLoc, rect);
+			cQuadTile *tile = m_tileMgr->GetTile(renderer, node->level, node->xLoc, node->yLoc, rect);
 			for (int i = 0; i < 4; ++i)
 				if (node->children[i])
 					g_stack[sp++].node = node->children[i];
@@ -398,7 +404,7 @@ void cTerrainQuadTree::RenderQuad(graphic::cRenderer &renderer
 {
 	cShader11 *shader = renderer.m_shaderMgr.FindShader(eVertexType::POSITION);
 	assert(shader);
-	shader->SetTechnique("Unlit");
+	shader->SetTechnique("Light");// "Unlit");
 	shader->Begin();
 	shader->BeginPass(renderer, 0);
 
@@ -425,8 +431,8 @@ void cTerrainQuadTree::RenderQuad(graphic::cRenderer &renderer
 		sQuadTreeNode<sQuadData> *node = g_stack[sp - 1].node;
 		--sp;
 
-		const float maxH = node ? m_tileMgr.GetMaximumHeight(node->level
-			, node->xLoc, node->yLoc) : cHeightmap::DEFAULT_H;
+		const float maxH = node ? m_tileMgr->GetMaximumHeight(node->level
+			, node->xLoc, node->yLoc) : cHeightmap2::DEFAULT_H;
 		const sRectf rect = m_qtree.GetNodeRect(node);
 		const bool isShow = IsContain(frustum, rect, maxH);
 		if (!isShow)
@@ -435,7 +441,7 @@ void cTerrainQuadTree::RenderQuad(graphic::cRenderer &renderer
 		// leaf node?
 		if (!node->children[0])
 		{
-			cQuadTile *tile = m_tileMgr.GetTile(renderer, node->level, node->xLoc, node->yLoc, rect);
+			cQuadTile *tile = m_tileMgr->GetTile(renderer, node->level, node->xLoc, node->yLoc, rect);
 			if (tile)
 			{
 				//if (tile->m_facility && tile->m_facilityIndex)
@@ -632,7 +638,7 @@ void cTerrainQuadTree::RenderRect3D(graphic::cRenderer &renderer
 	renderer.m_cbMaterial.Update(renderer, 2);
 	renderer.m_rect3D.m_vtxBuff.Bind(renderer);
 	renderer.GetDevContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP);
-	renderer.GetDevContext()->DrawInstanced(renderer.m_rect3D.m_lineCount, 1, 0, 0);
+	renderer.GetDevContext()->Draw(renderer.m_rect3D.m_lineCount, 0);
 }
 
 
@@ -642,7 +648,7 @@ void cTerrainQuadTree::RenderRect3D(graphic::cRenderer &renderer
 //{
 //	RETV(!node, cHeightmap::DEFAULT_H);
 //
-//	const cQuadTile *tile = m_tileMgr.FindTile(node->level, node->xLoc, node->yLoc);
+//	const cQuadTile *tile = m_tileMgr->FindTile(node->level, node->xLoc, node->yLoc);
 //	if (tile && tile->m_hmap)
 //		return max(cHeightmap::DEFAULT_H, tile->m_hmap->m_maxHeight);
 //
@@ -769,7 +775,7 @@ inline bool cTerrainQuadTree::IsContain(const graphic::cFrustum &frustum, const 
 // 카메라와 거리에 따라, 쿼드 레벨을 계산한다.
 inline int cTerrainQuadTree::GetLevel(const float distance)
 {
-	int dist = (int)distance - 20;
+	int dist = (int)distance - m_distanceLevelOffset;
 
 #define CALC(lv) \
 	if ((dist >>= 1) < 1) \
@@ -858,20 +864,22 @@ Vector2d cTerrainQuadTree::GetLongLat(const Ray &ray)
 }
 
 
-// 경위도에 해당하는 3D 위치를 리턴한다. (상대좌표계)
+// 경위도에 해당하는 3D 위치를 리턴한다. (relation coordinate)
 Vector3 cTerrainQuadTree::Get3DPos(const Vector2d &lonLat)
 {
 	const Vector3 globalPos = gis::WGS842Pos(lonLat);
 	Vector3 relPos = gis::GetRelationPos(globalPos);
 	const sQuadTreeNode<sQuadData> *node = 
 		m_qtree.GetNode(sRectf::Rect(globalPos.x, globalPos.z, 0,0));
+	if (node && !node->data.tile)
+		node = m_qtree.GetNode(node->level-1, node->xLoc>>1, node->yLoc>>1);
+
 	if (node && node->data.tile)
 	{
 		cQuadTile *tile = node->data.tile;
 
 		const float u = (relPos.x - tile->m_rect.left) / tile->m_rect.Width();
-		const float v = 1.f + (tile->m_rect.top - relPos.z) / tile->m_rect.Height();
-		//relPos.y = (tile->m_hmap->GetHeight(Vector2(u,v)) - 0.1f) * 2500.f;
+		const float v = 1.f + ((tile->m_rect.top - relPos.z) / tile->m_rect.Height());
 		relPos.y = tile->GetHeight(Vector2(u, v)) * 2500.f;
 	}
 
@@ -893,6 +901,10 @@ Vector3 cTerrainQuadTree::Get3DPosPrecise(graphic::cRenderer &renderer, const Ve
 	if (std::get<0>(result) < 0)
 		return relPos;
 
+	// too much file loading, clear all
+	if (m_tileMgr->m_loader1.m_files.size() > 1000)
+		m_tileMgr->Clear();
+
 	int level = std::get<0>(result);
 	int x = std::get<1>(result);
 	int y = std::get<2>(result);
@@ -900,21 +912,22 @@ Vector3 cTerrainQuadTree::Get3DPosPrecise(graphic::cRenderer &renderer, const Ve
 	while (level >= 0)
 	{
 		rect = m_qtree.GetNodeRect(level, x, y);
-		cQuadTile *tile = m_tileMgr.GetTile(renderer, level, x, y, rect);
+		cQuadTile *tile = m_tileMgr->GetTile(renderer, level, x, y, rect);
 		if (!tile)
 			break;
 
 		if (!tile->m_hmap
-			&& m_tileMgr.LoadHeightMapDirect(renderer, *tile, *this, level, x, y, rect))
+			&& m_tileMgr->LoadHeightMapDirect(renderer, *tile, *this, level, x, y, rect))
 		{
 			// insert heightmap fileloader for clear memory
-			const StrPath fileName = cHeightmap::GetFileName(g_mediaDir, level, x, y);
-			typedef graphic::cFileLoader<cHeightmap, 1000, sHeightmapArgs> FileLoaderType;
+			const StrPath fileName = cHeightmap2::GetFileName(g_mediaDir, level, x, y);
+
+			typedef graphic::cFileLoader2<2000, 10, sHeightmapArgs2> FileLoaderType;
 			FileLoaderType::sChunk chunk;
 			chunk.accessTime = 0.f;
 			chunk.state = FileLoaderType::COMPLETE;
 			chunk.data = tile->m_hmap;
-			m_tileMgr.m_hmaps.m_files.insert({ fileName.GetHashCode(), chunk });
+			m_tileMgr->m_loader1.m_files.insert({ fileName.GetHashCode(), chunk });
 		}
 
 		if (tile->m_hmap)
@@ -1032,7 +1045,8 @@ std::pair<bool, Vector3> cTerrainQuadTree::Pick(const Ray &ray)
 
 void cTerrainQuadTree::Clear()
 {
-	m_tileMgr.Clear();
+	if (m_tileMgr)
+		m_tileMgr->Clear();
 	m_qtree.Clear(false);
 	SAFE_DELETEA(m_nodeBuffer);
 }

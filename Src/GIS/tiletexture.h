@@ -6,16 +6,17 @@
 
 
 
-class cTileTexture
+class cTileTexture : public graphic::iParallelLoadObject
 {
 public:
 	cTileTexture();
 	cTileTexture(graphic::cRenderer &renderer, const char *fileName);
 	cTileTexture(graphic::cRenderer &renderer, const cTileTexture *src, const char *fileName
-		, const graphic::sFileLoaderArg &args) {
-		throw std::exception();
+		, const sHeightmapArgs2 &args) {
+		throw std::exception(); // nothing~
 	}
 	virtual ~cTileTexture();
+	virtual const char* Type() override { return "cTileTexture"; }
 	
 	bool Create(graphic::cRenderer &renderer, const char *fileName);
 	void Clear();

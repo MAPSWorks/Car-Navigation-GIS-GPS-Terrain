@@ -12,6 +12,24 @@ enum class eAnalysisType : int
 };
 
 
+// trace camera view type
+enum class eCameraType : int
+{
+	Custom
+	, Camera1 // first person view
+	, Camera2
+	, Camera3
+	, Camera4
+	, MAX
+};
+
+struct sCameraInfo {
+	float lookAtY;
+	float distance;
+};
+
+
+
 class cMapView;
 class cInformationView;
 class cNavigationView;
@@ -27,7 +45,7 @@ public:
 		, const StrPath pathDirectoryName);
 	bool Read3DPosFiles(graphic::cRenderer &renderer, const StrPath pathDirectoryName);
 	bool ReadAndConvertPathFiles(graphic::cRenderer &renderer, cTerrainQuadTree &terrain
-		, const StrPath pathDirectoryName);
+		, const StrPath &pathDirectoryName);
 	bool ConvertTrackPos2Path();
 	void Clear();
 
@@ -58,7 +76,11 @@ public:
 	int m_gear; // transimission gear
 	int m_obdRcvCnt;
 
-	// Render Overhead
+	// View Type
+	eCameraType m_camType;
+	sCameraInfo m_camInfo[(int)eCameraType::MAX];
+
+	// Render Overlay
 	bool m_isShowTerrain;
 	bool m_isShowRenderGraph;
 	bool m_isCalcRenderGraph;
@@ -99,6 +121,13 @@ public:
 	double m_renderT1;
 	double m_renderT2;
 	bool m_isShowMapView;
+
+	// option
+	bool m_isDebugMode;
+	bool m_isDarkMode; // screen dark mode
+	Vector4 m_darkColor;
+
+	cShapefileLoader m_shape;
 
 	cTimer m_timer;
 };

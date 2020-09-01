@@ -18,27 +18,11 @@
 #include "../../../Common/Common/common.h"
 using namespace common;
 #include "../../../Common/Graphic11/graphic11.h"
-
 #include "CFW1StateSaver.h"
 
 
 namespace gis
 {
-	// using fo x=longitude, y=latitude
-	//struct Vector2d
-	//{
-	//	double x, y;
-
-	//	Vector2d() : x(0), y(0) {}
-	//	Vector2d(const double x0, const double y0) :x(x0), y(y0) {}
-
-	//	bool operator==(const Vector2d &rhs) {
-	//		return (x == rhs.x) && (y == rhs.y);
-	//	}
-	//	bool operator!=(const Vector2d &rhs) {
-	//		return !operator==(rhs);
-	//	}
-	//};
 
 	struct Vector3d
 	{
@@ -91,6 +75,7 @@ namespace gis
 		, const sRectf &rect);
 	Vector3 WGS842Pos(const Vector2d &lonLat);
 	Vector3 GetRelationPos(const Vector3 &globalPos);
+	double WGS84Distance(const Vector2d &lonLat0, const Vector2d &lonLat1);
 
 	// meter -> 3D unit
 	float Meter23DUnit(const float meter);
@@ -106,8 +91,9 @@ namespace gis
 		float north;
 	};
 
-	bool GetGPRMCLonLat(const Str512 &gprmc, OUT sGPRMC &out);
-	bool GetGPATTLonLat(const Str512 &gpatt, OUT sGPRMC &out);
+	bool GetGPRMC(const Str512 &gprmc, OUT sGPRMC &out);
+	bool GetGPATT(const Str512 &gpatt, OUT sGPRMC &out);
+	bool GetGPGGA(const Str512 &gpgga, OUT sGPRMC &out);
 	bool Check6Val(const double val);
 }
 
@@ -118,6 +104,7 @@ namespace gis
 #include "geodownloader.h"
 #include "quadtree.h"
 #include "heightmap.h"
+#include "heightmap2.h"
 #include "tiletexture.h"
 #include "poireader.h"
 #include "real3dmodelindexreader.h"
@@ -127,10 +114,10 @@ namespace gis
 #include "terrainquadtree.h"
 #include "triangulate.h"
 #include "route.h"
+#include "shapefileloader.h"
 #include "root.h"
 
 
 
 extern StrPath g_mediaDir;
-extern StrPath g_mediaDir2;
 

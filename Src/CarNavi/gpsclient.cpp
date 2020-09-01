@@ -7,13 +7,13 @@
 
 cGpsClient::cGpsClient()
 	: m_client(new network2::cPacketHeaderNoFormat())
-	, m_state(eState::Server)
 	, m_ip("192.168.1.102")
 	, m_port(60660)
 	, m_recvTime(0)
 	, m_speedRecvTime(0)
 	, m_recvCount(0)
 	, m_speed(0.f)
+	, m_altitude(0.f)
 	, m_fileAnimationIdx(0)
 	, m_inputType(eInputType::Serial)
 {
@@ -31,6 +31,15 @@ bool cGpsClient::Init()
 	m_ip = g_global->m_config.GetString("gps_server_ip", "192.168.1.102");
 	m_port = g_global->m_config.GetInt("gps_server_port", 60660);
 	m_inputType = (eInputType)g_global->m_config.GetInt("gps_input_type", 0);
+
+	// check ./gps directory to write gps log, if not exist create
+	if (!StrPath("./gps").IsDirectory())
+		::CreateDirectoryA("./gps", nullptr);
+
+
+	GpsReplay();
+	//ReadPathFile("path/path_20200504.txt");
+	//PathFileReplay();
 
 	return true;
 }
@@ -55,16 +64,13 @@ bool cGpsClient::ConnectGpsServer(const Str16 &ip, const int port)
 bool cGpsClient::ConnectGpsSerial(const int portNum, const int baudRate)
 {
 	const bool result = m_serial.Open(portNum, baudRate, '\n');
-	g_global->m_config.SetValue("gps_input_type", (int)m_inputType);
-	return result;
+g_global->m_config.SetValue("gps_input_type", (int)m_inputType);
+return result;
 }
 
 
 bool cGpsClient::GetGpsInfo(OUT gis::sGPRMC &out)
 {
-	if (eState::PathFile == m_state)
-		return false;
-
 	if (!IsConnect())
 	{
 		m_recvTime = 0.f;
@@ -93,7 +99,9 @@ bool cGpsClient::GetGpsInfo(OUT gis::sGPRMC &out)
 			return false;
 		}
 
-		memcpy(m_recvStr.m_str, packet.m_data, min(m_recvStr.SIZE, (uint)packet.m_writeIdx));
+		memcpy(m_recvStr.m_str, packet.m_data, min(m_recvStr.SIZE-1, (uint)packet.m_writeIdx));
+		m_recvStr.m_str[min(m_recvStr.SIZE - 1, (uint)packet.m_writeIdx)] = NULL;
+
 		if (ParseStr(m_recvStr, out))
 		{
 			if (out.speed == 0.f)
@@ -113,7 +121,7 @@ bool cGpsClient::GetGpsInfo(OUT gis::sGPRMC &out)
 		}
 
 		m_recvTime = curT;
-		dbg::Logp2("gps.txt", m_recvStr.c_str());
+		LogGpsFile(m_recvStr.c_str());
 	}
 	break;
 
@@ -121,22 +129,15 @@ bool cGpsClient::GetGpsInfo(OUT gis::sGPRMC &out)
 	{
 		while (1)
 		{
-			//int len = 0;
-			//const bool result = m_serial.m_serial.ReadStringUntil('\n'
-			//	, m_recvStr.m_str, len, m_recvStr.SIZE);
-			//if (!result || (len <= 0))
-			//	break;
 			const uint len = m_serial.RecvData((BYTE*)m_recvStr.m_str
-				, m_recvStr.SIZE);
+				, m_recvStr.SIZE - 1);
 			if (len == 0)
 				break;
 
-			if (m_recvStr.SIZE > len)
-				m_recvStr.m_str[len] = NULL;
-
+			m_recvStr.m_str[min(m_recvStr.SIZE - 1, len)] = NULL;
 			m_recvTime = curT;
 
-			dbg::Logp2("gps.txt", m_recvStr.c_str());
+			LogGpsFile(m_recvStr.c_str());
 
 			gis::sGPRMC tmp;
 			if (ParseStr(m_recvStr, tmp))
@@ -152,6 +153,81 @@ bool cGpsClient::GetGpsInfo(OUT gis::sGPRMC &out)
 	}
 	break;
 
+	case eInputType::GpsFile:
+	{
+		if (0 == m_gpsInfo.date)
+		{
+			if (GetGpsInfoFromGpsFile(m_gpsInfo))
+			{
+				isRead = true;
+				out = m_gpsInfo;
+				m_prevGpsInfo = m_gpsInfo;
+				m_prevDateTime = cDateTime2::Now();
+				m_prevGpsDateTime.SetTime(m_gpsInfo.date);
+
+				if (!GetGpsInfoFromGpsFile(m_gpsInfo))
+					m_gpsInfo.date = 0; // end of file
+			}
+		}
+		else
+		{
+			const cDateTime2 curDateTime = cDateTime2::Now();
+			cDateTime2 dt1 = curDateTime - m_prevDateTime;
+			const cDateTime2 dt2 = cDateTime2(m_gpsInfo.date) - m_prevGpsDateTime;
+			//dt1.m_t *= 5; // x2 speed up
+			const double dist = gis::WGS84Distance(m_gpsInfo.lonLat, m_prevGpsInfo.lonLat);
+
+			if ((dt2 < dt1) || (dist < 10.f))
+			{
+				isRead = true;
+				out = m_gpsInfo;
+				m_prevDateTime = curDateTime;
+				m_prevGpsDateTime.SetTime(m_gpsInfo.date);
+
+				m_prevGpsInfo = m_gpsInfo;
+				if (GetGpsInfoFromGpsFile(m_gpsInfo))
+					m_gpsInfo.date = 0; // end of file
+			}
+		}
+	}
+	break;
+
+	case eInputType::PathFile:
+	{
+		if (0 == m_gpsInfo.date)
+		{
+			if (GetGpsInfoFromPathFile(m_gpsInfo))
+			{
+				isRead = true;
+				out = m_gpsInfo;
+				m_prevDateTime = cDateTime2::Now();
+				m_prevGpsDateTime.SetTime(m_gpsInfo.date);
+
+				if (!GetGpsInfoFromPathFile(m_gpsInfo))
+					m_gpsInfo.date = 0; // end of file
+			}
+		}
+		else
+		{
+			const cDateTime2 curDateTime = cDateTime2::Now();
+			cDateTime2 dt1 = curDateTime - m_prevDateTime;
+			const cDateTime2 dt2 = cDateTime2(m_gpsInfo.date) - m_prevGpsDateTime;
+			dt1.m_t *= 2; // x2 speed up
+
+			if (dt2 < dt1)
+			{
+				isRead = true;
+				out = m_gpsInfo;
+				m_prevDateTime = curDateTime;
+				m_prevGpsDateTime.SetTime(m_gpsInfo.date);
+
+				if (!GetGpsInfoFromPathFile(m_gpsInfo))
+					m_gpsInfo.date = 0; // end of file
+			}
+		}
+	}
+	break;
+
 	default: assert(0); break;
 	}
 
@@ -159,56 +235,130 @@ bool cGpsClient::GetGpsInfo(OUT gis::sGPRMC &out)
 }
 
 
-bool cGpsClient::FileReplay() 
+bool cGpsClient::GpsReplay()
 {
-	m_state = eState::PathFile;
+	//m_gpsFs = std::ifstream("gps.txt");
+	m_gpsFs = std::ifstream("./gps/20200507.txt");
+	if (!m_gpsFs.is_open())
+	{
+		m_inputType = eInputType::Serial;
+		return false;
+	}
+
+	string line;
+	for (int i = 0; i < 130000; ++i)
+		getline(m_gpsFs, line);
+
+	m_inputType = eInputType::GpsFile;
+
 	return true;
 }
 
 
-bool cGpsClient::StopFileReplay()
+bool cGpsClient::PathFileReplay()
 {
-	m_state = eState::Server;
+	m_inputType = eInputType::PathFile;
+	m_fileAnimationIdx = 0;
+	m_gpsInfo.date = 0;
+	return true;
+}
+
+
+bool cGpsClient::StopPathFileReplay()
+{
+	m_inputType = eInputType::Serial;
 	m_fileAnimationIdx = 0; 
 	return true;
 }
 
 
-bool cGpsClient::IsFileReplay()
+bool cGpsClient::IsPathReplay()
 {
-	return eState::PathFile == m_state;
+	return (eInputType::PathFile == m_inputType);
+}
+
+
+bool cGpsClient::IsGpsReplay()
+{
+	return (eInputType::GpsFile == m_inputType);
 }
 
 
 bool cGpsClient::IsServer()
 {
-	return eState::Server == m_state;
+	return eInputType::Network == m_inputType;
 }
 
 
-// 파일에서 GPS정보를 읽어온다.
-bool cGpsClient::GetGpsInfoFromFile(OUT gis::sGPRMC &out)
+// Path 파일에서 GPS정보를 읽어온다.
+bool cGpsClient::GetGpsInfoFromPathFile(OUT gis::sGPRMC &out)
 {
-	if (m_fileAnimationIdx >= (int)m_paths.size())
+	if (m_fileAnimationIdx >= (int)m_pathReplayData.size())
 		return false;
 
 	static Vector2d oldLonLat;
-	while (m_fileAnimationIdx < (int)m_paths.size())
+	while (m_fileAnimationIdx < (int)m_pathReplayData.size())
 	{
-		const Vector2d lonLat = m_paths[m_fileAnimationIdx++].lonLat;
-		if (lonLat.IsEmpty())
+		const sPath &path = m_pathReplayData[m_fileAnimationIdx++];
+		if (path.lonLat.IsEmpty())
 			continue;
 
-		if (oldLonLat != lonLat)
+		if (oldLonLat != path.lonLat)
 		{
 			out.available = true;
-			out.lonLat = lonLat;
-			oldLonLat = lonLat;
+			out.date = path.t;
+			out.lonLat = path.lonLat;
+			out.speed = path.speed;
+			oldLonLat = path.lonLat;
+			return true;
+		}
+	}
+	return false;
+}
+
+
+// read gps information frop gps log file
+bool cGpsClient::GetGpsInfoFromGpsFile(OUT gis::sGPRMC &out)
+{
+	bool isRead = false;
+
+	while (m_gpsFs.is_open() && !m_gpsFs.eof())
+	{
+		string line;
+		if (!getline(m_gpsFs, line))
+			break;
+		if (line.size() < 6)
+			continue;
+
+		vector<string> toks;
+		common::tokenizer(line, ",", "", toks);
+		if (toks.size() < 2)
+			continue;
+
+		const string date = toks[0];
+
+		m_recvStr.clear();
+		for (uint i = 1; i < toks.size(); ++i)
+		{
+			m_recvStr += toks[i];
+			if (toks.size() != (i - 1))
+				m_recvStr += ",";
+		}
+		m_recvStr += "\n";
+		m_recvStr.trim();
+
+		gis::sGPRMC tmp;
+		if (ParseStr(m_recvStr, tmp))
+		{
+			isRead = true;
+			out = tmp;
+			out.date = common::GetCurrentDateTime6(date);
+			m_recvCount++;
 			break;
 		}
 	}
-	out.speed = 0.f;
-	return true;
+
+	return isRead;
 }
 
 
@@ -220,6 +370,10 @@ bool cGpsClient::IsConnect()
 		return m_client.IsConnect();
 	case eInputType::Serial:
 		return m_serial.IsOpen();
+	case eInputType::GpsFile:
+		return true;
+	case eInputType::PathFile:
+		return true;
 	default: assert(0); break;
 	}
 	return false;
@@ -232,6 +386,19 @@ bool cGpsClient::IsReadyConnect()
 }
 
 
+// parse NMEA protocol
+// $GPRMC
+//	- lon/lat
+//	- speed
+// $GPATT
+// $GPVTG
+// $GPGGA
+//	- altitude
+// $GPGSA
+// reference
+//	- http://www.ndgps.go.kr/_prog/_board/index.php?mode=V&no=696&code=dgps1&site_dvs_cd=kr&menu_dvs_cd=&skey=&sval=&GotoPage=8
+//	- https://m.blog.naver.com/PostView.nhn?blogId=thefeel777&logNo=130109531670&proxyReferer=https:%2F%2Fwww.google.com%2F
+//  - http://aprs.gids.nl/nmea/
 bool cGpsClient::ParseStr(const Str512 &str, OUT gis::sGPRMC &out)
 {
 	vector<string> lines;
@@ -244,17 +411,25 @@ bool cGpsClient::ParseStr(const Str512 &str, OUT gis::sGPRMC &out)
 	ZeroMemory(&gps, sizeof(gps));
 	for (auto &line : lines)
 	{
-		if (gis::GetGPRMCLonLat(line.c_str(), gps))
+		const Str512 str = line;
+		if (gis::GetGPRMC(str, gps))
 		{
 			out = gps;
 			state = 1;
 		}
 		else if ((state != 1) 
-			&& (gis::GetGPATTLonLat(line.c_str(), gps)))
+			&& (gis::GetGPATT(str, gps)))
 		{
 			out = gps;
 		}
+		else 
+		{
+			if (GetGPGGA(str, gps))
+				m_altitude = gps.altitude;
+		}
 	}
+
+	out.altitude = m_altitude;
 
 	if (!out.available)
 		return false;
@@ -277,14 +452,11 @@ bool cGpsClient::ReadPathFile(const char *fileName)
 	if (!ifs.is_open())
 		return false;
 
-	m_paths.clear();
-	m_paths.reserve(1024);
+	m_pathReplayData.clear();
+	m_pathReplayData.reserve(1024);
 
-	int cnt = 0;
 	string line;
-	while (getline(ifs, line) 
-		//&& (cnt++ < 10000)
-		)
+	while (getline(ifs, line))
 	{
 		vector<string> out;
 		common::tokenizer(line, ",", "", out);
@@ -295,12 +467,32 @@ bool cGpsClient::ReadPathFile(const char *fileName)
 		info.t = common::GetCurrentDateTime6(out[0]);
 		info.lonLat.x = atof(out[1].c_str());
 		info.lonLat.y = atof(out[2].c_str());
+		if (out.size() > 3)
+			info.speed = (float)atof(out[3].c_str());
+
 		if (info.lonLat.IsEmpty())
 			continue;
 
-		m_paths.push_back(info);
+		m_pathReplayData.push_back(info);
 	}
 
+	return true;
+}
+
+
+// log gps file
+// gps filename : ./gps/yyyy-mm-dd.txt
+// log format: yyyy-mm-dd hh:mm:ss:mmm <gps string>
+bool cGpsClient::LogGpsFile(const char* str)
+{
+	if (m_gpsFileName.empty())
+	{
+		m_gpsFileName = "./gps/";
+		m_gpsFileName += common::GetCurrentDateTime4() + ".txt";
+	}
+
+	const string date = common::GetCurrentDateTime();
+	dbg::Logp2(m_gpsFileName.c_str(), "%s, %s", date.c_str(), m_recvStr.c_str());
 	return true;
 }
 

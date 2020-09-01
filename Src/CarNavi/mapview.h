@@ -19,12 +19,18 @@ public:
 	virtual void OnEventProc(const sf::Event &evt) override;
 	virtual void OnResetDevice() override;
 
+	void ChangeViewCamera(const eCameraType camType);
+
 
 protected:
+	void RenderRPMGuage(const ImVec2 &pos, const float guageH, const float deltaSeconds);
+	void RenderGraph(const ImVec2 &pos);
 	void UpdateGPS(const float deltaSeconds);
 	void UpdateOBD2(const float deltaSeconds);
 	void UpdateMapScanning(const float deltaSeconds);
 	void UpdateMapTrace(const float deltaSeconds);
+	void MoveCamera(const Vector3 &newPos, const float camSpeed, const bool isPredict=false);
+
 	void UpdateCameraTraceLookat(const bool isUpdateDistance = true);
 	void UpdateLookAt();
 	void OnWheelMove(const float delta, const POINT mousePt);
@@ -62,6 +68,7 @@ public:
 	float m_lookAtDistance;
 	float m_lookAtYVector;
 	Vector3 m_avrDir;
+	Vector3 m_curDir;
 	bool m_isGestureInput;
 	float m_gpsUpdateDelta;
 
